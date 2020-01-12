@@ -337,9 +337,9 @@ org-wiki-location."
 ;; @SECTION: Protocol
 
 (defun org-wiki--org-link (path desc backend)
-  "Create an html org-wiki page when exporting to BACKEND is html.
-Example: The hyperlink [[wiki:PATH][DESC]]
-will be exported to <a href='PATH.html'>DESC</a>"
+  "Format an org-mode html-link for html export.
+Example: The hyperlink [[wiki:Linux][Dealing with Linux]]
+will be exported to <a href='Linux.html'>Dealing with Linux</a>"
    (cl-case backend
      (html (format
             "<a href='%s.html'>%s</a>"

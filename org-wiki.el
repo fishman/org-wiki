@@ -949,7 +949,7 @@ Note: This function doesn't freeze Emacs since it starts another Emacs process."
        ["Browse current page asset directory with system's file manager.\nM-x org-wiki-asset-open"
         (org-wiki-asset-open)]
 
-        ["Insert a link to a wiki page \nM-x org-wiki-insert" (org-wiki-insert)]
+        ["Insert a link to a wiki page \nM-x org-wiki-insert-link" (org-wiki-insert-link)]
         ["Insert a link of type wiki-asset-sys at point.\nM-x org-wiki-asset-insert"
         (org-wiki-asset-insert)]
         ["Insert a link of type file:<page>/<asset> at point.\nM-x org-wiki-asset-insert-file"

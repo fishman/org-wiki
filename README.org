@@ -7,7 +7,16 @@
 #+HTML_HEAD: <link href="theme/org-nav-theme.css" rel="stylesheet"> 
 #+HTML_HEAD: <script src="theme/org-nav-theme.js"></script>
 
+*This repo is a fork of the original [[https://github.com/caiorss/org-wiki][org-wiki]]* The plan for this fork is to
+extend the original org-wiki to make it the Emacs(-lisp) equivalent of the great
+[[https://zim-wiki.org/][zim-wiki]].
 
+** Changelog (changes/additions from original)
+  - automatically create/sync index from existing wiki pages files
+  - add deletion command
+  - add find page command using completion-read (compatible with most completion
+    frameworks like ivy, selectrum etc.)
+    
 * Org-wiki 
 ** Overview 
 

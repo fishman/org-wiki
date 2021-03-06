@@ -218,6 +218,8 @@ ELISP> (org-wiki--page->file \"Linux\")
   \"~/org/wiki/Linux.org\""
 
   (concat (file-name-as-directory org-wiki-location)
+          (when (string= pagename "index")
+            "wiki-")
           pagename
           ".org"))
 
@@ -278,7 +280,9 @@ ELISP> (remove-if-not #'file->org-wiki/page (org-wiki/page-files))
              (string-prefix-p ".#" b)
              (string-suffix-p "~"  b)
              (string-prefix-p "#" b)
-             (string-suffix-p "#" b)))))
+             (string-suffix-p "#" b)
+             ;; remove syncthing conflicts
+             (string-match-p "sync-conflict" b)))))
    (directory-files org-wiki-location abspath "\\.org$")))
 
 
@@ -336,6 +340,18 @@ org-wiki-location."
 ;;
 ;; @SECTION: Protocol
 
+(defun org-wiki--insert-index ()
+  (goto-char (point-min))
+  (org-next-visible-heading 1)
+  (forward-line)
+  (delete-region (point) (point-max))
+  (dolist (x (org-wiki--page-files))
+    (insert "** ")
+    (insert (org-make-link-string (concat "wiki:" (string-remove-suffix ".org" x))
+                                  (string-remove-suffix ".org" x)))
+    (newline))
+  (outline-up-heading 1))
+
 (defun org-wiki--org-link (path desc backend)
   "Format an org-mode html-link for html export.
 Example: The hyperlink [[wiki:Linux][Dealing with Linux]]
@@ -356,7 +372,8 @@ Example: if PAGENAME is Linux it will return [[wiki:Linux][Linux]]"
 Example:  (org-wiki--open-page \"Linux\")
 Will open the the wiki file Linux.org in
 `org-wiki-location`"
-  (let ((org-wiki-file (org-wiki--page->file pagename)))
+  (let* ((org-wiki-file (org-wiki--page->file pagename))
+         (index (string= pagename org-wiki-index-file-basename)))
     (if (not (file-exists-p org-wiki-file))
         ;; Action executed if file doesn't exist.
         (progn (find-file  org-wiki-file)
@@ -365,15 +382,26 @@ Will open the the wiki file Linux.org in
                ;; Save current page buffer
                (save-buffer)
                ;; Create assets directory
-               (org-wiki--assets-make-dir pagename))
+               (org-wiki--assets-make-dir pagename)
+               (when index
+                 (org-wiki--insert-index)))
 
       ;; Action executed if file exists.
-      (if org-wiki-default-read-only
-          ;; open file in read-only mode.
-          (progn  (find-file  org-wiki-file)
-                  (read-only-mode 1))
+        ;; (if org-wiki-default-read-only
+            ;; open file in read-only mode.
+      (let ((buffer-exists-p (get-buffer
+                              (file-name-nondirectory org-wiki-file))))
+        (find-file  org-wiki-file)
+        (unless buffer-exists-p
+          (when index
+            (when (y-or-n-p "Update index?")
+              (org-wiki--insert-index)))
+          (read-only-mode 1))))))
           ;; open file in writable mode.
-          (find-file  org-wiki-file)))))
+          ;; (find-file  org-wiki-file)
+          ;; (when index
+          ;;   (when (y-or-n-p "Update index?")
+          ;;     (org-wiki--insert-index))))))))
 
 
 (defun org-wiki--assets-get-file (pagename filename)

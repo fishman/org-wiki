@@ -282,6 +282,7 @@ ELISP> (remove-if-not #'file->org-wiki/page (org-wiki/page-files))
              (string-prefix-p "#" b)
              (string-suffix-p "#" b)
              ;; remove syncthing conflicts
+             (string-match-p org-wiki-index-file-basename b)
              (string-match-p "sync-conflict" b)))))
    (directory-files org-wiki-location abspath "\\.org$")))
 
@@ -346,11 +347,11 @@ org-wiki-location."
   (forward-line)
   (delete-region (point) (point-max))
   (dolist (x (org-wiki--page-files))
-    (insert "** ")
+    (insert "- ")
     (insert (org-make-link-string (concat "wiki:" (string-remove-suffix ".org" x))
                                   (string-remove-suffix ".org" x)))
     (newline))
-  (outline-up-heading 1))
+  (outline-previous-heading))
 
 (defun org-wiki--org-link (path desc backend)
   "Format an org-mode html-link for html export.
@@ -366,6 +367,51 @@ will be exported to <a href='Linux.html'>Dealing with Linux</a>"
   "Return a string containing a wiki link [[wiki:PAGENAME][PAGENAME]].
 Example: if PAGENAME is Linux it will return [[wiki:Linux][Linux]]"
   (format "[[wiki:%s][%s]]" pagename pagename))
+
+(defun org-wiki--contains-link (link-path file)
+  "Scans FILE for link to LINK-PATH.
+Returns FILE-path when positive."
+  (with-temp-buffer
+    (insert-file-contents file)
+    (when (member link-path
+                  (org-element-map
+                      (org-element-parse-buffer)
+                      'link
+                    (lambda (x) (org-element-property :path x))))
+      file)))
+
+(defun org-wiki-backlink-files (link-path)
+  "Return list with files that contain link to LINK_PATH."
+  (interactive
+   (list (org-element-property :path (org-element-context))))
+  "Use mapcan to remove `nil's"
+  (let ((backlink-files
+         (mapcan (lambda (file)
+                   (when-let (x (org-wiki--contains-link
+                                 link-path
+                                 (concat (file-name-as-directory org-wiki-location)
+                                         file)))
+                     (list x)))
+                 (org-wiki--page-files))))
+    (if (called-interactively-p)
+        (print backlink-files)
+      backlink-files)))
+
+(defun org-wiki-delete (pagename)
+  (interactive
+   (list (org-element-property :path (org-element-context))))
+  (let ((file (org-wiki--page->file pagename))
+        (assets-dir (org-wiki--assets-get-dir pagename)))
+    (let ((backlink-files (org-wiki-backlink-files pagename)))
+      (when
+          (y-or-n-p (concat (if (> (length backlink-files) 2)
+                                "More than two files contain links to this file, "
+                              (format "The file(s) %s link(s) to this file, "
+                                      (mapconcat 'identity backlink-files ", ")))
+                            "continue deleting entry?"))
+        (delete-file file t)
+        (delete-directory assets-dir t t)
+        (kill-whole-line)))))
 
 (defun org-wiki--open-page (pagename)
   "Open or create new a org-wiki page (PAGENAME) by name.

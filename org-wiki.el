@@ -437,7 +437,7 @@ Will open the the wiki file Linux.org in
             ;; open file in read-only mode.
       (let ((buffer-exists-p (get-buffer
                               (file-name-nondirectory org-wiki-file))))
-        (find-file  org-wiki-file)
+        (find-file-other-window  org-wiki-file)
         (unless buffer-exists-p
           (when index
             (when (y-or-n-p "Update index?")
@@ -808,6 +808,15 @@ to cancel the download."
   (org-wiki--asset-download-hof
    (lambda (pagename output-file)
      (save-excursion (insert (format "file:%s/%s" pagename output-file))))))
+
+;;;###autoload
+(defun org-wiki-find-page ()
+  "Browser the wiki files using helm."
+  (interactive)
+  (pop-to-buffer (find-file-noselect
+                  (org-wiki--page->file
+                   (completing-read "Open wiki page"
+                                    (delete-dups (org-wiki--page-list)))))))
 
 (defun org-wiki-helm ()
   "Browser the wiki files using helm."

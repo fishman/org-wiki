@@ -341,6 +341,12 @@ org-wiki-location."
 ;;
 ;; @SECTION: Protocol
 
+(defun org-wiki-goto-first-item ()
+  (interactive)
+  (goto-char (point-min))
+  (org-next-visible-heading 1)
+  (org-wiki-next-item))
+
 (defun org-wiki--check-index ()
   (interactive)
   (goto-char (point-min))
@@ -1343,6 +1349,27 @@ Toggle
   [ttm] - Toggle Emacs menu bar
 "))
   (read-only-mode))
+
+(defhydra hydra-org-wiki ()
+;;   "
+;; ^Navigate^             ^Edit^           ^Actions^          ^Search
+;; ^^^^^^^^-----------------------------------------------------------------
+;; _m_: mark          _d_: delete        _x_: execute       _R_: re-isearch
+;; _s_: save          _U_: unmark up     _b_: bury          _I_: isearch
+;; _d_: delete        ^ ^                _g_: refresh       _O_: multi-occur
+;; _D_: delete up     ^ ^                _T_: files only: % -28`Buffer-menu-files-only
+;; _~_: modified
+;; "
+  ("j" org-next-link "next")
+  ("k" org-previous-link "previous")
+  ("d" org-wiki-delete "delete")
+  ;; ("g" revert-buffer)
+  ;; ("c" nil "cancel")
+  ;; ("v" Buffer-menu-select "select" :color blue)
+  ;; ("o" Buffer-menu-other-window "other-window" :color blue)
+  ("q" quit-window "quit" :color blue))
+
+(define-key Buffer-menu-mode-map "." 'hydra-buffer-menu/body)
 
 ;; =========== Copy Path Commands ============= ;;
 

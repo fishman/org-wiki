@@ -438,7 +438,9 @@ Will open the the wiki file Linux.org in
             ;; open file in read-only mode.
       (let ((buffer-exists-p (get-buffer
                               (file-name-nondirectory org-wiki-file))))
-        (find-file-other-window  org-wiki-file)
+        (if index
+            (find-file org-wiki-file)
+          (find-file-other-window org-wiki-file))
         (unless buffer-exists-p
           (when index
             (when (y-or-n-p "Update index?")

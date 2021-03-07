@@ -341,6 +341,31 @@ org-wiki-location."
 ;;
 ;; @SECTION: Protocol
 
+(defun org-wiki--check-index ()
+  (interactive)
+  (goto-char (point-min))
+  (org-next-visible-heading 1)
+  (let (index-files)
+    (while (not (eobp))
+      (forward-line)
+      (org-next-link)
+      (push
+       (expand-file-name
+        (org-wiki--page->file
+         (org-element-property :path (org-element-context))))
+       index-files))
+    (message "In index exclusively: %s\nOn disk exclusively: %s"
+             (mapconcat 'identity (cl-nset-difference
+                                   (print index-files)
+                                   (print (org-wiki--page-files t))
+                                   :test #'equal)
+                         ", ")
+             (mapconcat 'identity (cl-nset-difference
+                                   (org-wiki--page-files t)
+                                   index-files
+                                   :test #'equal)
+                         ", "))))
+
 (defun org-wiki--insert-index ()
   (goto-char (point-min))
   (org-next-visible-heading 1)

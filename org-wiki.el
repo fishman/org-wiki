@@ -411,7 +411,8 @@ Returns FILE-path when positive."
                             "continue deleting entry?"))
         (delete-file file t)
         (delete-directory assets-dir t t)
-        (kill-whole-line)))))
+        (let ((buffer-read-only))
+          (kill-whole-line))))))
 
 (defun org-wiki--open-page (pagename)
   "Open or create new a org-wiki page (PAGENAME) by name.

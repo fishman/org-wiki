@@ -896,12 +896,21 @@ to cancel the download."
   (org-wiki--helm-selection
    (lambda (page) (insert (org-wiki--make-link page)))))
 
-(defun org-wiki-insert-new ()
+(defun org-wiki-insert-new (arg)
   "Create a new org-wiki and insert a link to it at point."
-  (interactive)
-  (let ((page-name (read-string  "Page: ")))
-    (save-excursion (insert (org-make-link-string (concat "wiki:" page-name)
-                                                  page-name)))))
+  (interactive "P")
+  (let ((page-name (read-string  "Page: "))
+        (buffer-read-only nil))
+    (save-excursion
+      (if arg
+          (goto-char (point-max))
+        (beginning-of-line))
+      (insert "- ")
+      (insert (org-make-link-string (concat "wiki:" page-name)
+                                                  page-name))
+      (newline))
+    (org-next-link)
+    (org-open-at-point)))
 
 (defun org-wiki-new ()
   "Create a new wiki page and open it without inserting a link."

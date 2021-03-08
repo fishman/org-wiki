@@ -7,12 +7,61 @@
 #+HTML_HEAD: <link href="theme/org-nav-theme.css" rel="stylesheet"> 
 #+HTML_HEAD: <script src="theme/org-nav-theme.js"></script>
 
-*This repo is a fork of the original [[https://github.com/caiorss/org-wiki][org-wiki]]* The plan for this fork is to
-extend the original org-wiki to make it the Emacs(-lisp) equivalent of the great
-[[https://zim-wiki.org/][zim-wiki]].
+*This repo is a fork of the original [[https://github.com/caiorss/org-wiki][org-wiki]] by caiorss.* The plan for this
+fork is to extend the original org-wiki to make it the Emacs(-lisp) equivalent
+of the great [[https://zim-wiki.org/][zim]] desktop wiki software (but even nicer).
 
-** Changelog (changes/additions from original)
-  - automatically create/sync index from existing wiki pages files
+[[https://github.com/caiorss/org-wiki][org-wiki]] offers a nice starter "template" for the project. However, that package
+is a little outdated and it requires an update to make it use more modern tools
+like [[https://orgmode.org/worg/org-tutorials/org-publish-html-tutorial.html][org-publish]], [[https://github.com/alphapapa/org-ql][org-ql]]/[[https://github.com/alphapapa/org-rifle][org-rifle]], [[https://github.com/alphapapa/org-sidebar][org-sidebar]]/[[https://github.com/toshism/org-super-links][org-super-links]] etc. Also I
+would prefer it uses Emacs lisp tools, like [[https://github.com/skeeto/skewer-mode][skewer-modee]] or [[https://github.com/skeeto/impatient-mode][impatient-mode]], to
+serve website previews.
+
+In some happy bright future this package might become the engine for the wiki
+part of the [[https://gitlab.com/dalanicolai/easy-thtml][easy-thtml]] package. The easy-thtml enables the possibility to make
+full use of a css-framework (check out the [[https://github.com/juanjosegarciaripoll/org-thtml/blob/master/personal-site/index.org][index.org]] in its =personal-site=
+directory). An example is provided by the [[https://gitlab.com/flonic/org-blog/-/blob/master/ox-bulma.el][ox-bulma]] exporter of which a very
+early site preview can be found [[https://flonic.gitlab.io/org-blog/blog/emacs-transient-tutorial/index.html][here]].
+
+** Motivation
+   Org-mode is an amazing personal management and note taking system. However,
+   its flexibility makes it a little overwhelming to decide on a good way to
+   structure the system.
+
+After researching different options, like [[https://www.orgroam.com/][org-roam]], [[org-brain]] etc., I concluded
+that actually I would prefer a simple and straightforward design like that of
+the [[https://zim-wiki.org/][zim]] desktop wiki software. Org actually provides a very similar design when
+using single org files as equivalent to [[https://zim-wiki.org/manual/Help/Notebooks.html][zim notebooks]]. However using a single
+org file per notebook has some drawbacks:
+
+*** Slow
+Unfortunately org quickly becomes really slow (I have a single note file with
+only 72 main headings and 413 total headings and it already takes more than 10
+seconds to just open it). This is one reason to break up the single file in
+multiple files.
+
+*** Publishing with org-publish
+I would love to share many of my notes and articles. However, to publish the
+single note file with a nice website structure, it is again a good strategy to
+break up the single note file in multiple files. In this way it can be made
+compatible with [[https://orgmode.org/worg/org-tutorials/org-publish-html-tutorial.html][org-publish]] and [[https://juanjose.garciaripoll.com/blog/org-mode-html-templates/index.html][org-thtml]] (which makes it possible to create org
+exporters for css-frameworks, like in my experiment [[https://gitlab.com/flonic/org-blog][here]] where I extended
+[[https://juanjose.garciaripoll.com/blog/org-mode-html-templates/index.html][ox-thtml]] into the [[https://gitlab.com/flonic/org-blog/-/blob/master/ox-bulma.el][ox-bulma]] exporter, an (unfinished) example page can be found
+[[https://flonic.gitlab.io/org-blog/blog/emacs-transient-tutorial/index.html][here]]. I guess in the end the =org-wiki= could replace the [[https://gitlab.com/dalanicolai/easy-thtml][easy-thtml]] package
+(which is a very basic start to "port" the [[https://github.com/masasam/emacs-easy-hugo][easy-hugo]] package to =org-thtmtl=).
+
+*** Contribute/collaborate
+    Of course to fulfill all the goals is a lot of work, so I would be very
+    happy with any kind of contributors/collaborators. I am planning to keep a
+    TODO list in the [[https://github.com/dalanicolai/org-wiki/wiki][wiki section]] of this repo.
+
+
+** Changelog (changes/additions w.r.t. original org-wiki)
+  - automatically create/sync index from existing wiki pages files (to leave the
+    structure of the index intact, the "index updater" which produces a
+    structure as found in the file system, will be replaced by an "index
+    checker" which uses =cl-set-difference= to find differences with files on
+    disk, but leaves the index structure intact)
   - add deletion command
   - add find page command using completion-read (compatible with most completion
     frameworks like ivy, selectrum etc.)

@@ -45,7 +45,6 @@
 
 ;; external libraries
 (require 'ox-html)
-(require 'helm)
 
 ;; built-in Emacs lib
 (require 'cl-lib)     ;; Common-lisp emulation library
@@ -79,6 +78,14 @@ If true, all org-wiki pages are closed when root directory is switched.
   :type  'boolean
   :group 'org-wiki)
 
+(defcustom org-wiki-completing-backend 'completing-read
+  "set completing backend.
+Supported: completing-read(default), ido, helm, consult"
+  :type '(choice
+          (const :tag "completing-read" 'completing-read)
+          (const :tag "helm" 'helm)
+          (const :tag "consult" 'consult))
+  :group 'org-wiki)
 
 
 ;;; =======  Python Webserver Settings =========== ;;
@@ -157,6 +164,17 @@ If true, all org-wiki pages are closed when root directory is switched.
 
 ;; @SECTION: Internal functionsq
 ;;
+(defun org-wiki--initialize-completing-backend ()
+  "Initialize completing backend"
+  (cond
+   ((eq org-wiki-completing-backend 'helm)
+    (require 'helm))
+   ((eq org-wiki-completing-backend 'consult)
+    (require 'conslut))
+   (t ;; use completing-read (default)
+    )
+   ))
+
 (defun org-wiki--concat-path (base relpath)
   "Concat directory path (BASE) and a relative path (RELPATH)."
   (concat (file-name-as-directory base) relpath))
@@ -581,39 +599,11 @@ points to the file <org wiki location>/Blueprint/box1.dwg."
                                       :follow #'org-wiki--protocol-open-assets-with-sys
                                       :export      #'org-wiki--asset-link)))
 
-(defun org-wiki--helm-selection (callback)
-  "Open a helm menu to select the wiki page and invokes the CALLBACK function."
-  (helm :sources `((
-                      (name . "Wiki Pages")
-                      (candidates . ,(delete-dups (org-wiki--page-list)))
-                      (action . ,callback)))))
-
 
 (defun org-wiki--asset-page-files (pagename)
   "Get all asset files from a given PAGENAME."
   (org-wiki--assets-make-dir pagename)
   (directory-files (org-wiki--assets-get-dir pagename)))
-
-
-(defun org-wiki--asset-helm-selection (callback)
-  "Higher order function to deal with page assets.
-
-org-wiki-asset-helm-selection (CALLBACK)
-
-This function opens a helm menu to select a wiki page and then
-passes the result of selection to a callback function that takes
-a asset file as argument.
-
-Example: If the user selects the file freebsdref1.pdf it inserts the
-file name at current point.
-
-> (org-wiki--asset-helm-selection (lambda (file) (insert file)))
-  freebsdref1.pdf"
-  (helm :sources `(((name . "Wiki Pages")
-                    (candidates . ,(org-wiki--asset-page-files
-                                    (org-wiki--current-page)))
-                    (action . (lambda (file)
-                                (,callback (org-wiki--current-page-asset-file file))))))))
 
 
 (defun org-wiki--asset-download-hof (callback)
@@ -653,6 +643,75 @@ point: 'Unix/Manual.pdf'."
     (funcall callback pagename output-file)))
 
 
+(defun org-wiki--selection (callback)
+  "Open menu to select the wiki page and invokes the CALLBACK function."
+  (org-wiki--initialize-completing-backend)
+  (cond
+   ((eq org-wiki-completing-backend 'helm)
+    (helm :sources `((
+                      (name . "Wiki Pages")
+                      (candidates . ,(delete-dups (org-wiki--page-list)))
+                      (action . ,callback)
+                      ))))
+   ((eq org-wiki-completing-backend 'consult)
+    (let ((selected
+           (consult--read (delete-dups (org-wiki--page-list))
+                          :prompt "Wiki Pages"
+                          :sort nil
+                          :require-match t
+                          :category 'file
+                          :state (consult--file-preview))))
+      (funcall callback selected)))
+   (t
+    (let ((selected
+           (completing-read "Wiki Pages:"
+                            (delete-dups (org-wiki--page-list)))))
+      (funcall callback selected)))
+   ))
+
+
+(defun org-wiki--asset-selection (callback)
+  "Higher order function to deal with page assets.
+
+This function opens a menu to select a wiki page
+and then passes the result of selection to a callback function
+that takes a asset file as argument.
+
+Example: If the user selects the file freebsdref1.pdf it inserts the
+file name at current point.
+
+> (org-wiki--asset-selection (lambda (file) (insert file)))
+freebsdref1.pdf"
+  (org-wiki--initialize-completing-backend)
+  (cond
+   ((eq org-wiki-completing-backend 'helm)
+    (helm :sources
+          `((
+             (name . "Wiki Pages")
+             (candidates . ,(org-wiki--asset-page-files
+                             (org-wiki--current-page)))
+             (action .  (lambda (file)
+                          (,callback (org-wiki--current-page-asset-file file))
+                          ))
+             ))))
+   ((eq org-wiki--completing-backend 'consult)
+    (let ((selected
+           (consult-read (org-wiki--asset-page-files
+                          (org-wiki--current-page))
+                         :prompt "Wiki Pages:"
+                         :sort nil
+                         :require-match t
+                         :category 'fule
+                         :state (consult--file-preview))))
+      (funcall callback (org-wiki--current-page-asset-file selected))))
+   (t
+    (let ((selected
+           (completing-read "Wiki Pages:"
+                            (org-wiki--asset-page-files
+                             (org-wiki--current-page)))))
+      (funcall callback (org-wiki--current-page-asset-file selected))))))
+
+
 ;;************** U S E R -  M-X - C O M M A N D S ********************* ;;;
 ;;
 ;; @SECTION: User commands
@@ -662,24 +721,75 @@ point: 'Unix/Manual.pdf'."
   (interactive)
   (command-apropos "org-wiki-"))
 
+
 (defun org-wiki-switch-root ()
-  "Switch org-wiki root directory."
+  "Switch org-wiki root directory"
   (interactive)
-  (helm :sources
-        `((name . "Org-wiki root dir")
-          (candidates . ,(mapcar (lambda (p)
-                                   (cons (format "%s - %s" (file-name-nondirectory p) p) p))
-                                 (mapcar #'string-trim org-wiki-location-list)))
-          (action . (lambda (p)
-                      ;; If custom variable is set to true, then close all org-wiki pages of current
-                      ;; org-wiki root directory
-                      (if org-wiki-close-root-switch (org-wiki-close))
-                      ;; set new org-wiki location
-                      (setq org-wiki-location p)
-                      ;; Go to index page
-                      (org-wiki-index)
-                      ;; Inform user about new directory
-                      (message (format "Org-wiki root dir set to: %s" p)))))))
+  (org-wiki--initialize-completing-backend)
+  (cond
+   ((eq org-wiki-completing-backend 'helm)
+    (helm :sources
+          `((name . "Org-wiki root dir")
+            (candidates
+             . ,(mapcar (lambda (p)
+                          (cons (format "%s - %s" (file-name-nondirectory p) p) p))
+                        (mapcar #'string-trim org-wiki-location-list)))
+            (action . (lambda (p)
+                        ;; If custom variable is set to true, then close
+                        ;; all org-wiki pages of current org-wiki root
+                        ;; directory
+                        (if org-wiki-close-root-switch (org-wiki-close))
+                        ;; set new org-wiki location
+                        (setq org-wiki-location p)
+                        ;; Go to index page
+                        (org-wiki-index)
+                        ;; Inform user about new directory
+                        (message (format "Org-wiki root dir set to: %s" p))
+                        )))))
+   ((eq org-wiki--completing-backend 'consult)
+    (let ((root
+           (mapcar (lambda (p)
+                     (cons (format "%s - %s" (file-name-nondirectory p) p) p))
+                   (mapcar #'string-trim org-wiki-location-list))))
+      (let ((selected
+             (consult--read (delete-dups (org-wiki--page-list))
+                            :prompt "Org-wiki root dir:"
+                            :sort nil
+                            :require-match t
+                            :category 'file
+                            :state (consult--file-preview))))
+        (progn
+          ;; If custom variable is set to true, then close
+          ;; all org-wiki pages of current org-wiki root directory
+          (if org-wiki-close-root-switch (org-wiki-close))
+          ;; set new org-wiki location
+          (setq org-wiki-location (assoc-default selected root))
+          ;; Go to index page
+          (org-wiki-index)
+          ;; Inform user about new directory
+          (message (format "Org-wiki root dir set to: %s"
+                           (assoc-default selected root)))
+          ))))
+   (t
+    (let ((root
+           (mapcar (lambda (p)
+                     (cons (format "%s - %s" (file-name-nondirectory p) p) p))
+                   (mapcar #'string-trim org-wiki-location-list))))
+      (let ((selected
+             (completing-read "Org-wiki root dir:" (mapcar #'car root))))
+        (progn
+          ;; If custom variable is set to true, then close
+          ;; all org-wiki pages of current org-wiki root directory
+          (if org-wiki-close-root-switch (org-wiki-close))
+          ;; set new org-wiki location
+          (setq org-wiki-location (assoc-default selected root))
+          ;; Go to index page
+          (org-wiki-index)
+          ;; Inform user about new directory
+          (message (format "Org-wiki root dir set to: %s"
+                           (assoc-default selected root)))
+          ))))))
+
 
 (defun org-wiki-index ()
   "Open the index page: <org-wiki-location>/index.org.
@@ -726,7 +836,7 @@ point: 'Unix/Manual.pdf'."
 It inserts a link of type wiki-asset-sys:<Wiki-page>;<Asset-File>
 Example:  [[wiki-asset-sys:Linux;LinuxManual.pdf]]"
   (interactive)
-  (org-wiki--asset-helm-selection
+  (org-wiki--asset-selection
    (lambda (file)
      (insert (format "[[wiki-asset-sys:%s;%s][%s]]"
                      (file-name-base (org-wiki--current-page-asset-dir))
@@ -739,7 +849,7 @@ Use this command to insert link to files that can be opened with
 Emacs like source codes. It will insert a link like this
 - [[file:Python/GpsScript.py][GpsScript.py]]."
   (interactive)
-  (org-wiki--asset-helm-selection
+  (org-wiki--asset-selection
     (lambda (file)
       (save-excursion
         (insert (org-make-link-string
@@ -752,7 +862,7 @@ Emacs like source codes. It will insert a link like this
 This command is similar to org-wiki-asset-insert-file but it inserts a link
 in this way: [[file:Linux/logo.png][file:Linux/logo.png/]]."
   (interactive)
-  (org-wiki--asset-helm-selection
+  (org-wiki--asset-selection
     (lambda (file)
       (save-excursion
         (insert (org-make-link-string
@@ -764,7 +874,7 @@ in this way: [[file:Linux/logo.png][file:Linux/logo.png/]]."
 (defun org-wiki-asset-insert-block ()
   "Insert code block with contents of some asset file."
   (interactive)
-  (org-wiki--asset-helm-selection
+  (org-wiki--asset-selection
     (lambda (file)
       (save-excursion
         (insert (concat " - File: " (org-make-link-string (concat "file:" file))))
@@ -789,7 +899,7 @@ file 'extendingClasses-number1.gst' it will open the file below with Emacs.
 
  - Smalltalk programming/'extendingClasses-number1.gst"
   (interactive)
-  (org-wiki--asset-helm-selection #'find-file))
+  (org-wiki--asset-selection #'find-file))
 
 (defun org-wiki-asset-find-sys ()
   "Open menu to select asset file of current page and open it with system's app.
@@ -798,7 +908,7 @@ user select the file 'numerical-methods-in-smalltalk.pdf' it will
 be opened with the default system's application like Foxit PDF or
 Okular reader."
   (interactive)
-  (org-wiki--asset-helm-selection #'org-wiki-xdg-open))
+  (org-wiki--asset-selection #'org-wiki-xdg-open))
 
 (defun org-wiki-asset-create ()
   "Prompt the user for a filename that doesn't exist yet and insert it at point.
@@ -845,30 +955,30 @@ to cancel the download."
 
 ;;;###autoload
 (defun org-wiki-find-page ()
-  "Browser the wiki files using helm."
+  "Browser the wiki files."
   (interactive)
   (pop-to-buffer (find-file-noselect
                   (org-wiki--page->file
                    (completing-read "Open wiki page"
                                     (delete-dups (org-wiki--page-list)))))))
 
-(defun org-wiki-helm ()
-  "Browser the wiki files using helm."
+(defun org-wiki ()
+  "Browser the wiki files."
   (interactive)
-  (org-wiki--helm-selection #'org-wiki--open-page))
+  (org-wiki--selection #'org-wiki--open-page))
 
 
-(defun org-wiki-helm-read-only ()
+(defun org-wiki-read-only ()
   "Open wiki page in read-only mode."
   (interactive)
-  (org-wiki--helm-selection (lambda (pagename)
+  (org-wiki--selection (lambda (pagename)
                              (find-file-read-only
                               (org-wiki--page->file pagename)))))
 
-(defun org-wiki-helm-frame ()
-  "Browser the wiki files using helm and opens it in a new frame."
+(defun org-wiki-frame ()
+  "Browser the wiki files and opens it in a new frame."
   (interactive)
-  (org-wiki--helm-selection  (lambda (act)
+  (org-wiki--selection  (lambda (act)
                                (with-selected-frame (make-frame)
                                  (set-frame-name (concat "Org-wiki: " act))
                                  (org-wiki--open-page act)))))
@@ -887,7 +997,7 @@ to cancel the download."
 
 ;;  @TODO: Implement org-wiki/helm-html
 ;;
-(defun org-wiki-helm-html ()
+(defun org-wiki-html ()
   "Browser the wiki files using helm."
   (interactive)
     (helm :sources `((
@@ -927,7 +1037,7 @@ to cancel the download."
 (defun org-wiki-insert-link ()
   "Insert a Wiki link at point for a existing page."
   (interactive)
-  (org-wiki--helm-selection
+  (org-wiki--selection
    (lambda (page) (insert (org-wiki--make-link page)))))
 
 (defun org-wiki-insert-new (arg)
@@ -984,10 +1094,10 @@ to cancel the download."
   (org-wiki--assets-buffer-make-dir)
   (org-wiki-xdg-open (file-name-base (buffer-file-name))))
 
-(defun org-wiki-assets-helm ()
+(defun org-wiki-assets ()
   "Open the assets directory of a wiki page."
   (interactive)
-  (org-wiki--helm-selection
+  (org-wiki--selection
    (lambda (page)
      (org-wiki--assets-make-dir page)
      (dired (org-wiki--assets-get-dir page)))))
@@ -1054,9 +1164,9 @@ Note: This function doesn't freeze Emacs since it starts another Emacs process."
 
        ["---" nil]
        ["Browsing" nil]
-       ["Browse page \nM-x org-wiki-helm" (org-wiki-helm)]
-       ["Browse page in other frame \nM-x org-wiki-helm-frame" (org-wiki-helm-frame)]
-       ["Browse pages in read-only mode \nM-x org-wiki-helm-read-only" (org-wiki-helm-read-only)]
+       ["Browse page \nM-x org-wiki" (org-wiki)]
+       ["Browse page in other frame \nM-x org-wiki-frame" (org-wiki-frame)]
+       ["Browse pages in read-only mode \nM-x org-wiki-read-only" (org-wiki-read-only)]
        ["---" nil]
        ["Wiki Directory" nil]
        ["Open org-wiki directory \nM-x org-wiki-dired" (org-wiki-dired)]
@@ -1213,10 +1323,10 @@ Note: This command requires Python3 installed."
     (,(kbd "bbi")        .  org-wiki-index-html)
 
     ;; ==== Commands to browse pages ==========
-    (,(kbd "hh")        .  org-wiki-helm)
+    (,(kbd "hh")        .  org-wiki)
     (,(kbd "hj")        .  org-wiki-switch)
-    (,(kbd "hr")        .  org-wiki-helm-read-only)
-    (,(kbd "hf")        .  org-wiki-helm-frame)
+    (,(kbd "hr")        .  org-wiki-read-only)
+    (,(kbd "hf")        .  org-wiki-frame)
     (,(kbd "kk")        .  org-wiki-close)
     
     ;; ==== Commands to browse directories =====
@@ -1321,10 +1431,10 @@ Open Index Page
 Browse Pages
 
   [kk]  - Close all wiki buffers                 - M-x org-wiki-close
-  [hh]  - Open a page.                           - M-x org-wiki-helm
+  [hh]  - Open a page.                           - M-x org-wiki
   [hj]  - Switch between org-wiki buffers        - M-x org-wiki-switch
-  [hr]  - Open a page in read-only mode.         - M-x org-wiki-helm-read-only
-  [hf]  - Open a page in a new frame.            - M-x org-wiki-helm-frame
+  [hr]  - Open a page in read-only mode.         - M-x org-wiki-read-only
+  [hf]  - Open a page in a new frame.            - M-x org-wiki-frame
 
 
 Open Directory
@@ -1455,15 +1565,15 @@ Toggle
 ;; ============ Command Alias ================= ;;
 
 
-(defun org-wiki-nav ()
-  "Navigate through `org-mode' headings. Alias to `helm-org-in-buffer-headings'."
-  (interactive)
-  (helm-org-in-buffer-headings))
+;; (defun org-wiki-nav ()
+;;   "Navigate through `org-mode' headings. Alias to `helm-org-in-buffer-headings'."
+;;   (interactive)
+;;   (helm-org-in-buffer-headings))
 
-(defun org-wiki-occur ()
-  "Search current buffer with `helm-occur'. Alias to `helm-occur'."
-  (interactive)
-  (helm-occur))
+;; (defun org-wiki-occur ()
+;;   "Search current buffer with `helm-occur'. Alias to `helm-occur'."
+;;   (interactive)
+;;   (helm-occur))
 
 (defun org-wiki-toggle-images ()
   "Toggle inline images. Alias to \\[org-toggle-inline-images]."
@@ -1481,37 +1591,37 @@ Toggle
   (org-preview-latex-fragment))
 
 
-(defun org-wiki-insert-latex ()
-  "Insert a latex template at point."
-  (interactive)
-  (helm :sources
-        `((name . "Latex Templates")
-          (candidates . ,(mapcar
-                          (lambda (p)
-                            (cons (concat (car p) " = " (cdr p))
-                                  (cdr p)))
-                          org-wiki-latex-templates))
-          (action . insert))))
+;; (defun org-wiki-insert-latex ()
+;;   "Insert a latex template at point."
+;;   (interactive)
+;;   (helm :sources
+;;         `((name . "Latex Templates")
+;;           (candidates . ,(mapcar
+;;                           (lambda (p)
+;;                             (cons (concat (car p) " = " (cdr p))
+;;                                   (cdr p)))
+;;                           org-wiki-latex-templates))
+;;           (action . insert))))
 
-(defun org-wiki-insert-symbol ()
-  "Insert symbols from math, physics, Greek letters and others."
-  (interactive)
-  (helm :sources
-      `((name . "General math and misc symbols")
-        (candidates . ,(mapcar
-                        (lambda (p)
-                          (cons (concat (car p) " = " (cdr p))
-                                (cdr p)))
-                        org-wiki-symbol-list))
-        (action . insert))))
+;; (defun org-wiki-insert-symbol ()
+;;   "Insert symbols from math, physics, Greek letters and others."
+;;   (interactive)
+;;   (helm :sources
+;;       `((name . "General math and misc symbols")
+;;         (candidates . ,(mapcar
+;;                         (lambda (p)
+;;                           (cons (concat (car p) " = " (cdr p))
+;;                                 (cdr p)))
+;;                         org-wiki-symbol-list))
+;;         (action . insert))))
 
-(defun org-wiki-insert-block ()
-  "Insert `org-mode' blocks  such as Latex equation, code block, quotes, tables and etc."
-  (interactive)
-  (helm :sources
-        `((name . "Org-mode code block")
-          (candidates . ,org-wiki-template-blocks)
-          (action . insert))))
+;; (defun org-wiki-insert-block ()
+;;   "Insert `org-mode' blocks  such as Latex equation, code block, quotes, tables and etc."
+;;   (interactive)
+;;   (helm :sources
+;;         `((name . "Org-mode code block")
+;;           (candidates . ,org-wiki-template-blocks)
+;;           (action . insert))))
 
 
 ;; ========= org-wiki Internal databases  =========== ;;

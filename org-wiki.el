@@ -84,7 +84,7 @@ Supported: completing-read(default), ido, helm, consult"
   :type '(choice
           (const :tag "completing-read" 'completing-read)
           (const :tag "helm" 'helm)
-          (const :tag "vertico" 'vertico))
+          (const :tag "vertico" 'vertico)
           (const :tag "consult" 'consult))
   :group 'org-wiki)
 

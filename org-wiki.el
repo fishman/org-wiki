@@ -84,6 +84,7 @@ Supported: completing-read(default), ido, helm, consult"
   :type '(choice
           (const :tag "completing-read" 'completing-read)
           (const :tag "helm" 'helm)
+          (const :tag "vertico" 'vertico))
           (const :tag "consult" 'consult))
   :group 'org-wiki)
 
@@ -171,6 +172,8 @@ Supported: completing-read(default), ido, helm, consult"
     (require 'helm))
    ((eq org-wiki-completing-backend 'consult)
     (require 'conslut))
+   ((eq org-wiki-completing-backend 'vertico)
+    (require 'vertico))
    (t ;; use completing-read (default)
     )
    ))
@@ -653,6 +656,8 @@ point: 'Unix/Manual.pdf'."
                       (candidates . ,(delete-dups (org-wiki--page-list)))
                       (action . ,callback)
                       ))))
+   ((eq org-wiki-completing-backend 'vertico)
+    (prin1 "not implemented yet"))
    ((eq org-wiki-completing-backend 'consult)
     (let ((selected
            (consult--read (delete-dups (org-wiki--page-list))
@@ -694,6 +699,8 @@ freebsdref1.pdf"
                           (,callback (org-wiki--current-page-asset-file file))
                           ))
              ))))
+   ((eq org-wiki-completing-backend 'vertico)
+    (prin1 "not implemented yet"))
    ((eq org-wiki--completing-backend 'consult)
     (let ((selected
            (consult-read (org-wiki--asset-page-files
